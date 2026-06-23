@@ -174,6 +174,18 @@ public class SerialConnector {
         try {
             String fullCommand = command + "\r\n";
             byte[] bytes = fullCommand.getBytes("UTF-8");
+
+            // Проверяем, что порт все еще открыт
+            if (activePort == null || !activePort.isOpen()) {
+                System.err.println("[SERIAL] Порт закрыт перед отправкой");
+                return false;
+            }
+
+            // Очищаем буфер перед отправкой
+            while (activePort.bytesAvailable() > 0) {
+                inputStream.read(new byte[1024]);
+            }
+
             outputStream.write(bytes);
             outputStream.flush();
             System.out.println("Отправлена команда: " + command);
@@ -396,8 +408,8 @@ public class SerialConnector {
             }
 
             // Выход из CLI
-            sendCommand("exit");
-            readResponse();
+            //sendCommand("exit");
+            //readResponse();
 
             result.success = true;
             result.message = "Синхронизация успешно завершена";
@@ -460,32 +472,78 @@ public class SerialConnector {
             }
 
             // Вход в CLI
-            if (!enterCliMode()) {
+            boolean cliEntered = false;
+            for (int attempt = 0; attempt < 3; attempt++) {
+                System.out.println("Попытка входа в CLI #" + (attempt + 1));
+
+                // Отправляем '#'
+                if (sendCommand("#")) {
+                    // Ждем ответ дольше
+                    Thread.sleep(500);
+                    String response = readResponse();
+                    if (response.contains("Entering CLI Mode") || response.contains("#")) {
+                        System.out.println("CLI режим активирован");
+                        cliEntered = true;
+                        break;
+                    }
+                }
+                Thread.sleep(1000);
+            }
+
+            if (!cliEntered) {
+                System.err.println("Не удалось войти в CLI режим после 3 попыток");
                 return false;
             }
 
             // Отправляем команды
             String[] cmdLines = commands.split("\\r?\\n");
-            for (String cmd : cmdLines) {
-                if (!cmd.trim().isEmpty()) {
-                    if (!sendCommand(cmd)) {
-                        System.err.println("Ошибка при отправке команды: " + cmd);
-                        return false;
-                    }
-                    // Ждем ответ после каждой команды
-                    readResponse();
+            System.out.println("Отправка " + cmdLines.length + " команд");
+
+            for (int i = 0; i < cmdLines.length; i++) {
+                String cmd = cmdLines[i].trim();
+                if (cmd.isEmpty()) continue;
+
+                System.out.println("Отправка команды " + (i + 1) + "/" + cmdLines.length + ": " + cmd.substring(0, Math.min(50, cmd.length())));
+
+                if (!sendCommand(cmd)) {
+                    System.err.println("Ошибка при отправке команды: " + cmd);
+                    // Пробуем восстановить соединение
+                    Thread.sleep(2000);
+                    continue;
                 }
+
+                // Ждем ответ с увеличенной задержкой
+                Thread.sleep(300);
+                String response = readResponse();
+                System.out.println("Получен ответ на команду " + (i + 1) + ": " + response.length() + " байт");
+
+                // Небольшая пауза между командами
+                Thread.sleep(200);
             }
 
-            // Отправляем команду save для сохранения
+            // Отправляем команду save с повторными попытками
             System.out.println("Отправка команды save для сохранения в EEPROM");
-            if (!sendCommand("save")) {
+
+            boolean saved = false;
+            for (int attempt = 0; attempt < 3; attempt++) {
+                if (sendCommand("save")) {
+                    Thread.sleep(1000);
+                    String saveResponse = readResponse();
+                    System.out.println("Ответ на save: " + saveResponse);
+
+                    if (saveResponse.contains("EEPROM") || saveResponse.contains("saved") ||
+                            saveResponse.contains("Rebooting") || saveResponse.contains("reboot")) {
+                        saved = true;
+                        break;
+                    }
+                }
+                Thread.sleep(1000);
+            }
+
+            if (!saved) {
+                System.err.println("Не удалось сохранить конфигурацию после 3 попыток");
                 return false;
             }
-
-            // Ждем ответ на save
-            String saveResponse = readResponse();
-            System.out.println("Ответ на save: " + saveResponse);
 
             // Выход из CLI
             sendCommand("exit");
@@ -494,6 +552,10 @@ public class SerialConnector {
             System.out.println("Запись VTX таблицы успешно завершена");
             return true;
 
+        } catch (InterruptedException e) {
+            System.err.println("Прервано выполнение: " + e.getMessage());
+            Thread.currentThread().interrupt();
+            return false;
         } catch (Exception e) {
             System.err.println("Ошибка при записи VTX: " + e.getMessage());
             e.printStackTrace();
@@ -519,5 +581,52 @@ public class SerialConnector {
             return response;
         }
         return "Не удалось войти в CLI";
+    }
+
+    /**
+     * Проверка связи с контроллером.
+     * Отправляет команду 'status' для проверки ответа.
+     *
+     * @return true если контроллер отвечает
+     */
+    public boolean pingController() {
+        if (!isConnected()) return false;
+
+        try {
+            System.out.println("Проверка связи с контроллером");
+
+            // Очищаем буфер перед отправкой
+            while (activePort.bytesAvailable() > 0) {
+                inputStream.read(new byte[1024]);
+            }
+
+            // Отправляем команду 'status'
+            outputStream.write("status\r\n".getBytes());
+            outputStream.flush();
+
+            // Ждем ответ с увеличенной задержкой
+            Thread.sleep(300);
+
+            // Читаем ответ
+            String response = readResponse();
+            System.out.println("Ответ на status: " + (response.length() > 50 ? response.substring(0, 50) + "..." : response));
+
+            // Проверяем, что ответ содержит что-то осмысленное
+            // В CLI режиме 'status' возвращает информацию о системе
+            // Если мы не в CLI - ответ может быть пустым или содержать ошибку
+            if (response != null && !response.isEmpty()) {
+                // Если ответ содержит "ERROR" - значит мы не в CLI режиме
+                if (response.contains("ERROR") || response.contains("UNKNOWN")) {
+                    System.out.println("Контроллер отвечает, но не в CLI режиме");
+                    return true; // Контроллер доступен, просто не в CLI
+                }
+                return true;
+            }
+
+            return false;
+        } catch (Exception e) {
+            System.err.println("Ошибка проверки связи: " + e.getMessage());
+            return false;
+        }
     }
 }
