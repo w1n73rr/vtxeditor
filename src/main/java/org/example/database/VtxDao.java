@@ -12,72 +12,31 @@ import java.util.List;
  */
 public interface VtxDao {
 
-    /**
-     * Получить полный список всех сеток частот из БД
-     * @return список объектов VtxBand
-     */
+    //операции с сетками
     List<VtxBand> getAllBands();
-
-    /**
-     * Найти конкретную сетку частот по ее уникальному номеру.
-     * @param bandNumber номер сетки (например, 1 для BAND_A)
-     * @return объект VtxBand или null, если не найден
-     */
     VtxBand getBandByNumber(int bandNumber);
-
-    /**
-     * Добавить новую или обновить существующую сетку частот.
-     * @param band объект сетки для сохранения
-     */
+    VtxBand getBandByLetter(char letter);
     void saveBand(VtxBand band);
-
-    /**
-     * Удалить сетку частот по ее id.
-     * @param idBands уникальный идентификатор сетки
-     */
     void deleteBand(int idBands);
 
-
-    /**
-     * Получить все частотные каналы, привязанные к конкретной сетке.
-     * @param bandId первичный ключ сетки (id_bands)
-     * @return список каналов VtxChannel
-     */
+    //операции с каналами
     List<VtxChannel> getChannelsByBandId(int bandId);
-
-    /**
-     * Обновить физическое значение частоты для конкретного канала.
-     * @param idChannels первичный ключ канала
-     * @param frequencyMhz новое значение частоты в МГц
-     */
+    VtxChannel getChannelByBandAndNumber(int bandId, int channelNumber);
     void updateChannelFrequency(int idChannels, int frequencyMhz);
-
-    /**
-     * Массовое сохранение или обновление списка каналов(синхронизация с контроллером).
-     * @param channels список каналов для сохранения
-     */
+    void updateChannelFrequency(int bandId, int channelNumber, int frequencyMhz);
     void saveChannels(List<VtxChannel> channels);
+    void saveChannel(VtxChannel channel);
+    void deleteChannel(int idChannel);
+    void deleteAllChannelsForBand(int bandId);
+    void replaceChannelsForBand(int bandId, List<VtxChannel> newChannels);
 
-
-    /**
-     * Получить все настройки конфигураций мощности и Pitmode для конкретной сетки.
-     * @param bandId первичный ключ сетки (id_bands)
-     * @return список конфигураций VtxConfig
-     */
+    //работа с конфигурацией
     List<VtxConfig> getConfigByBandId(int bandId);
-
-    /**
-     * Обновить параметры мощности для конкретного уровня конфигурации.
-     * @param idConfig первичный ключ конфигурации
-     * @param valueMw новое значение мощности в мВт
-     * @param label новая текстовая метка мощности (например, "MAX")
-     */
+    VtxConfig getConfigByBandAndLevel(int bandId, int levelIndex);
     void updateConfigPower(int idConfig, int valueMw, String label);
-
-    /**
-     * Массово обновить состояние режима работы передатчика для конкретной сетки частот.
-     * @param bandId первичный ключ сетки частот
-     * @param pitmode статус передатчика (true - включен, false - выключен)
-     */
     void updatePitmode(int bandId, boolean pitmode);
+    void saveConfig(VtxConfig config);
+    void deleteConfig(int idConfig);
+    void deleteAllConfigsForBand(int bandId);
+    void replaceConfigsForBand(int bandId, List<VtxConfig> newConfigs);
 }
