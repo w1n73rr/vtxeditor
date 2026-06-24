@@ -39,4 +39,10 @@ public interface VtxDao {
     void deleteConfig(int idConfig);
     void deleteAllConfigsForBand(int bandId);
     void replaceConfigsForBand(int bandId, List<VtxConfig> newConfigs);
+
+    //размерность таблицы в конфиге
+    void updateTotalBands(int bandId, int totalBands);
+    void updateTotalChannels(int bandId, int totalChannels);
+    int getTotalBands(int bandId);
+    int getTotalChannels(int bandId);
 }

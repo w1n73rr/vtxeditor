@@ -19,17 +19,29 @@ public class VtxConfig {
     // Флаг включения передатчика
     private boolean pitMode;
 
+    private int totalBands;
+    private int totalChannels;
+
     public VtxConfig() {
+        this.totalBands = 8;
+        this.totalChannels = 8;
     }
 
     // Конструктор со всеми параметрами для чтения из БД
-    public VtxConfig(int idConfig, int bandId, int levelIndex, String label, int valueMw, boolean pitMode) {
+    public VtxConfig(int idConfig, int bandId, int levelIndex, String label, int valueMw,
+                     boolean pitMode, int totalBands, int totalChannels) {
         this.idConfig = idConfig;
         this.bandId = bandId;
         setLevelIndex(levelIndex);
         setLabel(label);
         setValueMw(valueMw);
         this.pitMode = pitMode;
+        this.totalBands = totalBands > 0 ? totalBands : 8;
+        this.totalChannels = totalChannels > 0 ? totalChannels : 8;
+    }
+
+    public VtxConfig(int idConfig, int bandId, int levelIndex, String label, int valueMw, boolean pitMode) {
+        this(idConfig, bandId, levelIndex, label, valueMw, pitMode, 8, 8);
     }
 
     // Конструктор без id для создания новой конфигурации мощности
@@ -39,6 +51,8 @@ public class VtxConfig {
         setLabel(label);
         setValueMw(valueMw);
         this.pitMode = pitMode;
+        this.totalBands = 8;
+        this.totalChannels = 8;
     }
 
     public int getIdConfig() {
@@ -101,6 +115,22 @@ public class VtxConfig {
         this.pitMode = pitMode;
     }
 
+    public int getTotalBands() {
+        return totalBands;
+    }
+
+    public void setTotalBands(int totalBands) {
+        this.totalBands = totalBands > 0 ? totalBands : 8;
+    }
+
+    public int getTotalChannels() {
+        return totalChannels;
+    }
+
+    public void setTotalChannels(int totalChannels) {
+        this.totalChannels = totalChannels > 0 ? totalChannels : 8;
+    }
+
     @Override
     public String toString() {
         return "VtxConfig{" +
@@ -110,6 +140,8 @@ public class VtxConfig {
                 ", label='" + label + '\'' +
                 ", valueMw=" + valueMw +
                 ", pitMode=" + pitMode +
+                ", totalBands=" + totalBands +
+                ", totalChannels=" + totalChannels +
                 '}';
     }
 }

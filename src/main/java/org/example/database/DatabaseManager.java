@@ -27,7 +27,7 @@ public class DatabaseManager {
         try {
             Class.forName("org.sqlite.JDBC");
         } catch (ClassNotFoundException e) {
-            System.err.println("Драйвер SQLite JDBC не найден в classpath: " + e.getMessage());
+            System.err.println("БД - Драйвер SQLite JDBC не найден в classpath: " + e.getMessage());
         }
     }
 
@@ -60,7 +60,7 @@ public class DatabaseManager {
                 }
             }
 
-            System.out.println("Текущая версия схемы данных: " + currentVersion);
+            System.out.println("БД - Текущая версия схемы данных: " + currentVersion);
 
 
             // Если версия равна 0, накатываем версию 1 (создание таблиц и сидирование данных).
@@ -69,30 +69,30 @@ public class DatabaseManager {
                 currentVersion = 1;
             }
 
-            System.out.println("Текущая версия схемы: " + currentVersion);
+            System.out.println("БД - Текущая версия схемы: " + currentVersion);
 
-            // Имитация будущей миграции до версии 2
-            // Если в будущем нам потребуется добавить новые колонки
-            // мы напишем метод runMigrationV2 и раскомментируем этот блок
-            /*
+            // миграция 2
+
             if (currentVersion < 2) {
                 runMigrationV2(conn);
                 currentVersion = 2;
             }
-            */
+            System.out.println("БД - Текущая версия схемы: " + currentVersion);
 
-            System.out.println("База данных успешно инициализирована и готова к работе.");
+            System.out.println("БД - База данных успешно инициализирована и готова к работе.");
 
         } catch (SQLException e) {
-            System.err.println("Ошибка при инициализации базы данных: " + e.getMessage());
+            System.err.println("БД - Ошибка при инициализации базы данных: " + e.getMessage());
         }
     }
+
+
 
     /**
      * Миграция Версии 1: Создание таблиц и первичное заполнение данными частот.
      */
     private void runMigrationV1(Connection conn) throws SQLException {
-        System.out.println("[БД] Запуск миграции версии 1");
+        System.out.println("БД - Запуск миграции версии 1");
 
         try (Statement stmt = conn.createStatement()) {
             // Создаем родительскую таблицу vtx_bands (Сетки частот)
@@ -131,7 +131,47 @@ public class DatabaseManager {
 
             // Записываем новую версию схемы данных в заголовок SQLite
             stmt.execute("PRAGMA user_version = 1;");
-            System.out.println("[БД] Миграция версии 1 успешно завершена.");
+            System.out.println("БД - Миграция версии 1 успешно завершена.");
+        }
+    }
+
+    /**
+     * Миграция Версии 2: Добавляем поля total_bands и total_channels в таблицу vtx_config.
+     */
+    private void runMigrationV2(Connection conn) throws SQLException {
+        System.out.println("БД - Запуск миграции версии 2");
+
+        try (Statement stmt = conn.createStatement()) {
+            // Проверяем, существует ли колонка total_bands
+            try {
+                stmt.execute("ALTER TABLE vtx_config ADD COLUMN total_bands INTEGER DEFAULT 8;");
+                System.out.println("БД - Добавлена колонка total_bands");
+            } catch (SQLException e) {
+                if (e.getMessage().contains("duplicate column name")) {
+                    System.out.println("БД - Колонка total_bands уже существует");
+                } else {
+                    throw e;
+                }
+            }
+
+            // Проверяем, существует ли колонка total_channels
+            try {
+                stmt.execute("ALTER TABLE vtx_config ADD COLUMN total_channels INTEGER DEFAULT 8;");
+                System.out.println("БД - Добавлена колонка total_channels");
+            } catch (SQLException e) {
+                if (e.getMessage().contains("duplicate column name")) {
+                    System.out.println("БД - Колонка total_channels уже существует");
+                } else {
+                    throw e;
+                }
+            }
+
+            // Обновляем существующие записи и устанавливаем значения по умолчанию
+            stmt.execute("UPDATE vtx_config SET total_bands = 8 WHERE total_bands IS NULL;");
+            stmt.execute("UPDATE vtx_config SET total_channels = 8 WHERE total_channels IS NULL;");
+
+            stmt.execute("PRAGMA user_version = 2;");
+            System.out.println("БД - Миграция версии 2 успешно завершена.");
         }
     }
 
@@ -139,7 +179,7 @@ public class DatabaseManager {
      * Наполнение базы данных стартовыми сетками
      */
     private void seedInitialData(Statement stmt) throws SQLException {
-        System.out.println("[БД] Наполнение базы данных сетками");
+        System.out.println("БД - Наполнение базы данных сетками");
 
         int[][] frequencies = {
                 {7300, 7579, 7859, 8138, 8417, 8697, 8976, 9256}, // BAND_A (1)
@@ -170,7 +210,7 @@ public class DatabaseManager {
                 if (rs.next()) {
                     bandId = rs.getInt(1);
                 } else {
-                    throw new SQLException("Не удалось получить сгенерированный ID сетки " + bandNames[i]);
+                    throw new SQLException("БД - Не удалось получить сгенерированный ID сетки " + bandNames[i]);
                 }
             }
 
@@ -186,12 +226,12 @@ public class DatabaseManager {
             // Вставляем настройки мощности для этой сетки (vtx_config)
             // уровень 1: MIN (20 мВт), Pitmode выключен по умолчанию (0)
             String insertConfigMin = String.format(
-                    "INSERT INTO vtx_config (level_index, label, value_mw, pitmode, band_id) VALUES (1, 'MIN', 20, 0, %d);",
+                    "INSERT INTO vtx_config (level_index, label, value_mw, pitmode, band_id, total_bands, total_channels) VALUES (1, 'MIN', 20, 0, %d, 8, 8);",
                     bandId
             );
             // Уровень 2: MAX (1995 мВт), Pitmode выключен (0)
             String insertConfigMax = String.format(
-                    "INSERT INTO vtx_config (level_index, label, value_mw, pitmode, band_id) VALUES (2, 'MAX', 1995, 0, %d);",
+                    "INSERT INTO vtx_config (level_index, label, value_mw, pitmode, band_id, total_bands, total_channels) VALUES (2, 'MAX', 1995, 0, %d, 8, 8);",
                     bandId
             );
 

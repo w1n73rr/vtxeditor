@@ -261,7 +261,9 @@ public class SqliteVtxDao implements VtxDao {
     @Override
     public List<VtxConfig> getConfigByBandId(int bandId) {
         List<VtxConfig> configs = new ArrayList<>();
-        String sql = "SELECT id_config, level_index, label, value_mw, pitmode, band_id FROM vtx_config WHERE band_id = ? ORDER BY level_index ASC;";
+        // Обновленный SQL с новыми полями
+        String sql = "SELECT id_config, level_index, label, value_mw, pitmode, band_id, " +
+                "total_bands, total_channels FROM vtx_config WHERE band_id = ? ORDER BY level_index ASC;";
 
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -269,14 +271,17 @@ public class SqliteVtxDao implements VtxDao {
             pstmt.setInt(1, bandId);
             try (ResultSet rs = pstmt.executeQuery()) {
                 while (rs.next()) {
-                    configs.add(new VtxConfig(
+                    VtxConfig config = new VtxConfig(
                             rs.getInt("id_config"),
                             rs.getInt("band_id"),
                             rs.getInt("level_index"),
                             rs.getString("label"),
                             rs.getInt("value_mw"),
-                            rs.getBoolean("pitmode")
-                    ));
+                            rs.getBoolean("pitmode"),
+                            rs.getInt("total_bands"),
+                            rs.getInt("total_channels")
+                    );
+                    configs.add(config);
                 }
             }
         } catch (SQLException e) {
@@ -318,9 +323,11 @@ public class SqliteVtxDao implements VtxDao {
     public void saveConfig(VtxConfig config) {
         String sql;
         if (config.getIdConfig() > 0) {
-            sql = "UPDATE vtx_config SET level_index = ?, label = ?, value_mw = ?, pitmode = ?, band_id = ? WHERE id_config = ?;";
+            sql = "UPDATE vtx_config SET level_index = ?, label = ?, value_mw = ?, pitmode = ?, " +
+                    "band_id = ?, total_bands = ?, total_channels = ? WHERE id_config = ?;";
         } else {
-            sql = "INSERT INTO vtx_config (level_index, label, value_mw, pitmode, band_id) VALUES (?, ?, ?, ?, ?);";
+            sql = "INSERT INTO vtx_config (level_index, label, value_mw, pitmode, band_id, " +
+                    "total_bands, total_channels) VALUES (?, ?, ?, ?, ?, ?, ?);";
         }
 
         try (Connection conn = DatabaseManager.getConnection();
@@ -331,9 +338,11 @@ public class SqliteVtxDao implements VtxDao {
             pstmt.setInt(3, config.getValueMw());
             pstmt.setBoolean(4, config.isPitMode());
             pstmt.setInt(5, config.getBandId());
+            pstmt.setInt(6, config.getTotalBands());
+            pstmt.setInt(7, config.getTotalChannels());
 
             if (config.getIdConfig() > 0) {
-                pstmt.setInt(6, config.getIdConfig());
+                pstmt.setInt(8, config.getIdConfig());
                 pstmt.executeUpdate();
             } else {
                 pstmt.executeUpdate();
@@ -515,7 +524,7 @@ public class SqliteVtxDao implements VtxDao {
         }
 
         String deleteSql = "DELETE FROM vtx_config WHERE band_id = ?;";
-        String insertSql = "INSERT INTO vtx_config (level_index, label, value_mw, pitmode, band_id) VALUES (?, ?, ?, ?, ?);";
+        String insertSql = "INSERT INTO vtx_config (level_index, label, value_mw, pitmode, band_id, total_bands, total_channels) VALUES (?, ?, ?, ?, ?, ?, ?);";
 
         try (Connection conn = DatabaseManager.getConnection()) {
             conn.setAutoCommit(false);
@@ -527,13 +536,14 @@ public class SqliteVtxDao implements VtxDao {
                 int deleted = deleteStmt.executeUpdate();
                 System.out.println("Удалено старых конфигов для bandId=" + bandId + ": " + deleted);
 
-                // 2. Вставляем новые конфиги
                 for (VtxConfig config : newConfigs) {
                     insertStmt.setInt(1, config.getLevelIndex());
                     insertStmt.setString(2, config.getLabel());
                     insertStmt.setInt(3, config.getValueMw());
                     insertStmt.setBoolean(4, config.isPitMode());
                     insertStmt.setInt(5, bandId);
+                    insertStmt.setInt(6, config.getTotalBands());
+                    insertStmt.setInt(7, config.getTotalChannels());
                     insertStmt.addBatch();
                 }
 
@@ -552,5 +562,94 @@ public class SqliteVtxDao implements VtxDao {
         } catch (SQLException e) {
             System.err.println("Ошибка при замене конфигов: " + e.getMessage());
         }
+    }
+
+    @Override
+    public void updateTotalBands(int bandId, int totalBands) {
+        if (totalBands < 1) {
+            System.err.println("Количество бэндов должно быть больше 0");
+            return;
+        }
+
+        String sql = "UPDATE vtx_config SET total_bands = ? WHERE band_id = ?;";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, totalBands);
+            pstmt.setInt(2, bandId);
+            int updated = pstmt.executeUpdate();
+            System.out.println("БД - Обновлено total_bands для bandId=" + bandId +
+                    ": " + totalBands + " (обновлено записей: " + updated + ")");
+
+        } catch (SQLException e) {
+            System.err.println("БД - Ошибка при обновлении total_bands: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public void updateTotalChannels(int bandId, int totalChannels) {
+        if (totalChannels < 1) {
+            System.err.println("БД - Количество каналов должно быть больше 0");
+            return;
+        }
+
+        String sql = "UPDATE vtx_config SET total_channels = ? WHERE band_id = ?;";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, totalChannels);
+            pstmt.setInt(2, bandId);
+            int updated = pstmt.executeUpdate();
+            System.out.println("БД - Обновлено total_channels для bandId=" + bandId +
+                    ": " + totalChannels + " (обновлено записей: " + updated + ")");
+
+        } catch (SQLException e) {
+            System.err.println("БД - Ошибка при обновлении total_channels: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public int getTotalBands(int bandId) {
+        String sql = "SELECT total_bands FROM vtx_config WHERE band_id = ? LIMIT 1;";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, bandId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    int totalBands = rs.getInt("total_bands");
+                    // Если значение null, возвращаем 8 по умолчанию
+                    if (rs.wasNull()) {
+                        return 8;
+                    }
+                    return totalBands;
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("БД - Ошибка при получении total_bands: " + e.getMessage());
+        }
+        return 8; // значение по умолчанию
+    }
+
+    @Override
+    public int getTotalChannels(int bandId) {
+        String sql = "SELECT total_channels FROM vtx_config WHERE band_id = ? LIMIT 1;";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, bandId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    int totalChannels = rs.getInt("total_channels");
+                    if (rs.wasNull()) {
+                        return 8;
+                    }
+                    return totalChannels;
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("БД - Ошибка при получении total_channels: " + e.getMessage());
+        }
+        return 8; // значение по умолчанию
     }
 }
