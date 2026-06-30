@@ -65,10 +65,10 @@ public class VtxChannel {
     }
 
     public void setFrequencyMhz(int frequencyMhz) {
-        if (frequencyMhz >= 1000 && frequencyMhz <= 12000) {
+        if (frequencyMhz >= 0 && frequencyMhz <= 12000) {
             this.frequencyMhz = frequencyMhz;
         } else {
-            throw new IllegalArgumentException("Частота должна быть в диапазоне от 1000 до 12000 МГц");
+            throw new IllegalArgumentException("Частота должна быть в диапазоне от 0 до 12000 МГц");
         }
     }
 
