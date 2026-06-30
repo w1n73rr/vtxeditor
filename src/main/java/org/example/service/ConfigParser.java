@@ -140,7 +140,7 @@ public class ConfigParser {
                     // Ищем существующий бэнд
                     VtxBand matchedBand = null;
 
-                    // Сначала ищем по номеру (приоритет)
+                    // Сначала ищем по номеру
                     if (existingByNumber.containsKey(bandNumber)) {
                         matchedBand = existingByNumber.get(bandNumber);
                         // Обновляем данные на случай, если изменились
@@ -342,5 +342,23 @@ public class ConfigParser {
         }
         sb.append("\r\n");
         return sb.toString();
+    }
+
+    public String generateDimensionCommands(int totalBands, int totalChannels) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("vtxtable bands ").append(totalBands).append("\r\n");
+        sb.append("vtxtable channels ").append(totalChannels).append("\r\n");
+        return sb.toString();
+    }
+
+    public boolean validateCommandResponse(String response) {
+        if (response == null || response.isEmpty()) {
+            return false;
+        }
+        if (response.contains("###ERROR")) {
+            System.err.println("Ошибка: " + response);
+            return false;
+        }
+        return true;
     }
 }
