@@ -322,4 +322,25 @@ public class ConfigParser {
         }
         return bands;
     }
+
+    /**
+     * Генерирует команду только для одного бэнда
+     */
+    public String generateSingleBandCommand(VtxBand band, List<VtxChannel> channels) {
+        if (band == null) return "";
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("vtxtable band ")
+                .append(band.getBandNumber()).append(" ")
+                .append(band.getBandName()).append(" ")
+                .append(band.getBandLetter()).append(" CUSTOM");
+
+        if (channels != null) {
+            for (VtxChannel ch : channels) {
+                sb.append(" ").append(ch.getFrequencyMhz());
+            }
+        }
+        sb.append("\r\n");
+        return sb.toString();
+    }
 }
