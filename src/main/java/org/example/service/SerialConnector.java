@@ -564,7 +564,7 @@ public class SerialConnector {
     }
 
     /**
-     * Чтение сырой VTX таблицы с контроллера (для отладки).
+     * Чтение сырой VTX таблицы с контроллера.
      *
      * @return сырой ответ от контроллера
      */
@@ -626,6 +626,95 @@ public class SerialConnector {
             return false;
         } catch (Exception e) {
             System.err.println("Ошибка проверки связи: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Запись только одного измененного бэнда
+     */
+    public boolean writeSingleBand(int bandId) {
+        if (!isConnected()) {
+            System.err.println("Порт не подключен");
+            return false;
+        }
+
+        System.out.println("Инкрементальная запись для бэнда ID=" + bandId);
+
+        try {
+            VtxBand band = null;
+            List<VtxChannel> channels = new ArrayList<>();
+
+            List<VtxBand> allBands = dao.getAllBands();
+            for (VtxBand b : allBands) {
+                if (b.getIdBands() == bandId) {
+                    band = b;
+                    channels = dao.getChannelsByBandId(bandId);
+                    break;
+                }
+            }
+
+            if (band == null) {
+                System.err.println("Бэнд с ID=" + bandId + " не найден");
+                return false;
+            }
+
+            String command = parser.generateSingleBandCommand(band, channels);
+            if (command.isEmpty()) {
+                System.err.println("Не удалось сгенерировать команду");
+                return false;
+            }
+
+            System.out.println("Команда: " + command.trim());
+
+            boolean cliEntered = false;
+            for (int attempt = 0; attempt < 3; attempt++) {
+                if (sendCommand("#")) {
+                    Thread.sleep(500);
+                    String response = readResponse();
+                    if (response.contains("Entering CLI Mode") || response.contains("#")) {
+                        cliEntered = true;
+                        break;
+                    }
+                }
+                Thread.sleep(1000);
+            }
+
+            if (!cliEntered) {
+                System.err.println("Не удалось войти в CLI режим");
+                return false;
+            }
+
+            if (!sendCommand(command)) {
+                System.err.println("Ошибка при отправке команды");
+                return false;
+            }
+
+            Thread.sleep(300);
+            String response = readResponse();
+
+            if (response.contains("###ERROR")) {
+                System.err.println("Ошибка: " + response);
+                return false;
+            }
+
+            System.out.println("Сохранение в EEPROM");
+            sendCommand("save");
+
+            Thread.sleep(500);
+
+            disconnect();
+
+            System.out.println("Инкрементальная запись для бэнда " + band.getBandName() + " выполнена");
+            return true;
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            System.err.println("Прервано: " + e.getMessage());
+            return false;
+        } catch (Exception e) {
+            System.err.println("Ошибка: " + e.getMessage());
+            e.printStackTrace();
             return false;
         }
     }
