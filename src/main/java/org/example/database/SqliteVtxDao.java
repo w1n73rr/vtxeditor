@@ -489,10 +489,8 @@ public class SqliteVtxDao implements VtxDao {
 
                 //Удаляем старые каналы
                 deleteStmt.setInt(1, bandId);
-                int deleted = deleteStmt.executeUpdate();
-                System.out.println("Удалено старых каналов для bandId=" + bandId + ": " + deleted);
+                deleteStmt.executeUpdate();
 
-                //Вставляем новые каналы
                 for (VtxChannel channel : newChannels) {
                     insertStmt.setInt(1, channel.getChannelNumber());
                     insertStmt.setInt(2, channel.getFrequencyMhz());
@@ -500,8 +498,7 @@ public class SqliteVtxDao implements VtxDao {
                     insertStmt.addBatch();
                 }
 
-                int[] inserted = insertStmt.executeBatch();
-                System.out.println("Вставлено новых каналов для bandId=" + bandId + ": " + inserted.length);
+                insertStmt.executeBatch();
 
                 conn.commit();
 
@@ -533,8 +530,7 @@ public class SqliteVtxDao implements VtxDao {
                  PreparedStatement insertStmt = conn.prepareStatement(insertSql)) {
 
                 deleteStmt.setInt(1, bandId);
-                int deleted = deleteStmt.executeUpdate();
-                System.out.println("Удалено старых конфигов для bandId=" + bandId + ": " + deleted);
+                deleteStmt.executeUpdate();
 
                 for (VtxConfig config : newConfigs) {
                     insertStmt.setInt(1, config.getLevelIndex());
@@ -547,8 +543,7 @@ public class SqliteVtxDao implements VtxDao {
                     insertStmt.addBatch();
                 }
 
-                int[] inserted = insertStmt.executeBatch();
-                System.out.println("Вставлено новых конфигов для bandId=" + bandId + ": " + inserted.length);
+                insertStmt.executeBatch();
 
                 conn.commit();
 
